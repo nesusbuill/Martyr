@@ -16,9 +16,11 @@
 
     <application
         android:label="Martyr"
+        android:icon="@drawable/avatar"
+        android:roundIcon="@drawable/avatar"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
         android:allowBackup="false"
-        tools:replace="android:theme">
+        tools:replace="android:theme,android:icon">
 
         <meta-data
             android:name="moe.shizuku.client.V3_SUPPORT"

@@ -3,41 +3,39 @@ name: Build Martyr App
 on:
   push:
     branches: [ main, master ]
-  workflow_dispatch: # Cho phép bấm chạy thủ công
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. Checkout mã nguồn
+      - name: Checkout mã nguồn
         uses: actions/checkout@v4
 
-      - name: 2. Cài đặt JDK 17
+      - name: Cài đặt JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: 3. Setup Gradle 8.2
+      - name: Setup Gradle 8.2
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.2'
 
-      - name: 4. Chấp nhận giấy phép Android SDK
+      - name: Chấp nhận giấy phép Android SDK
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
 
-      # QUAN TRỌNG: TẠO KEYSTORE ĐỂ FILE APK CÓ CHỮ KÝ (KHÔNG BỊ LỖI CÀI ĐẶT)
-      - name: 5. Tạo Keystore tự động
+      # BƯỚC QUAN TRỌNG: GIẢI MÃ KEYSTORE TỪ SECRET RA FILE VẬT LÝ
+      - name: Giải mã Keystore
         run: |
-          keytool -genkeypair -v -keystore app/release.keystore -alias martyr -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=Martyr, OU=Dev, O=Apex, L=Hanoi, S=Hanoi, C=VN"
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/release.keystore
 
-      - name: 6. Build APK Release
+      - name: Build APK Release
         run: gradle assembleRelease
 
-      # UPLOAD FILE APK LÊN GITHUB ĐỂ SẾP TẢI VỀ
-      - name: 7. Upload APK lên Github
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Martyr-APK
           path: app/build/outputs/apk/release/*.apk
-          if-no-files-found: error

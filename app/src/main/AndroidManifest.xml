@@ -16,8 +16,7 @@
 
     <application
         android:label="Martyr"
-        android:icon="@drawable/avatar"
-        android:roundIcon="@drawable/avatar"
+        android:icon="@drawable/avatar" 
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
         android:allowBackup="false"
         tools:replace="android:theme,android:icon">

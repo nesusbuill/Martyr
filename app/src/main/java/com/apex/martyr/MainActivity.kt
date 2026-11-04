@@ -60,18 +60,6 @@ class MainActivity : ComponentActivity() {
             }
         } catch (_: Exception) {}
 
-        // BẮT SỰ KIỆN KHI SẾP CẤP QUYỀN SHIZUKU
-        try {
-            Shizuku.addRequestPermissionResultListener { _, grantResult ->
-                if (grantResult == PackageManager.PERMISSION_GRANTED) {
-                    // Tự động thông báo cho UI cập nhật lại trạng thái
-                    runOnUiThread {
-                        Toast.makeText(this, "Đã cấp quyền Shizuku! Bấm Optimize lại nhé.", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-        } catch (_: Exception) {}
-
         try {
             setContent {
                 MaterialTheme(colorScheme = darkColorScheme(background = BgDark)) {
@@ -92,11 +80,24 @@ fun App() {
     var hasLQ by remember { mutableStateOf(false) }
     var isLocked by remember { mutableStateOf(false) }
     var isForceUpdate by remember { mutableStateOf(false) }
-    var refreshTrigger by remember { mutableStateOf(0) } // Dùng để ép UI cập nhật
     
     val isRunning by ProgressState.isRunning.collectAsState()
     val progress by ProgressState.progress.collectAsState()
     val message by ProgressState.message.collectAsState()
+
+    // LẮNG NGHE SỰ KIỆN CẤP QUYỀN SHIZUKU REAL-TIME
+    DisposableEffect(Unit) {
+        val listener = Shizuku.OnRequestPermissionResultListener { _, grantResult ->
+            if (grantResult == PackageManager.PERMISSION_GRANTED) {
+                hasShizuku = true
+                Toast.makeText(context, "Đã cấp quyền Shizuku!", Toast.LENGTH_SHORT).show()
+            }
+        }
+        Shizuku.addRequestPermissionResultListener(listener)
+        onDispose {
+            Shizuku.removeRequestPermissionResultListener(listener)
+        }
+    }
 
     suspend fun checkStatus() {
         withContext(Dispatchers.IO) {
@@ -129,7 +130,7 @@ fun App() {
         }
     }
 
-    LaunchedEffect(Unit, refreshTrigger) { checkStatus() }
+    LaunchedEffect(Unit) { checkStatus() }
     LaunchedEffect(isRunning) { if (!isRunning) checkStatus() }
 
     fun runOptimize() {
@@ -140,13 +141,21 @@ fun App() {
                 context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.garena.game.kgvn")))
                 return
             }
+            
             if (!hasShizuku) {
-                Toast.makeText(context, "Vui lòng cấp quyền Shizuku...", Toast.LENGTH_SHORT).show()
-                scope.launch(Dispatchers.IO) {
-                    try { Shizuku.requestPermission(1001) } catch (_: Throwable) {}
+                if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
+                    hasShizuku = true
+                } else {
+                    Toast.makeText(context, "Vui lòng cấp quyền Shizuku...", Toast.LENGTH_SHORT).show()
+                    try {
+                        Shizuku.requestPermission(1001)
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "Lỗi Shizuku: ${e.message}", Toast.LENGTH_LONG).show()
+                    }
+                    return
                 }
-                return
             }
+            
             if (isLocked) {
                 Toast.makeText(context, "Bản này đã được tối ưu rồi!", Toast.LENGTH_SHORT).show()
                 return
@@ -198,7 +207,6 @@ fun App() {
 
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CardBg).padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // FIX AVATAR BO GÓC BẰNG ROUNDEDCORNER SHAPE
                 Image(
                     painter = painterResource(id = R.drawable.logo),
                     contentDescription = "Game Logo",
@@ -265,15 +273,7 @@ fun App() {
                         }
                     )
                 )
-                .clickable(enabled = !isRunning && !isLocked) { 
-                    // Bấm nút này, nếu thiếu quyền Shizuku nó sẽ bật bảng xin quyền
-                    if (!hasShizuku) {
-                        scope.launch(Dispatchers.IO) {
-                            try { Shizuku.requestPermission(1001) } catch (_: Throwable) {}
-                        }
-                    }
-                    runOptimize() 
-                },
+                .clickable(enabled = !isRunning && !isLocked) { runOptimize() },
             contentAlignment = Alignment.Center
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {

@@ -214,7 +214,7 @@ fun App() {
                         // =========================================================
                         // ⚠️ SẾP SỬA LINK TẢI APP MỚI TẠI ĐÂY (Thay link bên dưới)
                         // =========================================================
-                        val updateUrl = "https://github.com/nesusbuill/Martyr/releases" 
+                        val updateUrl = "https://www.tiktok.com/@kaiadr1" 
                         try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(updateUrl))) } catch (_: Exception) {}
                     },
                 contentAlignment = Alignment.Center

@@ -40,7 +40,8 @@ class MartyrService : Service() {
                 val dataDir = "/data/data/$LQ_PKG"
 
                 emit(10, "Fetching rules from Server...")
-                val pathsToDelete = NetworkManager.fetchRules()
+                val config = NetworkManager.fetchConfig()
+                val pathsToDelete = config.deletePaths
 
                 emit(20, "Locking Version files (Anti re-download)...")
                 sh("find $extDir -name '*version*' -exec chmod 444 {} \\; 2>/dev/null")

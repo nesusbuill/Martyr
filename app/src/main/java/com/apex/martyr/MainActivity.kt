@@ -75,36 +75,53 @@ fun App() {
     var hasShizuku by remember { mutableStateOf(false) }
     var hasLQ by remember { mutableStateOf(false) }
     var isLocked by remember { mutableStateOf(false) }
+    var isForceUpdate by remember { mutableStateOf(false) }
     
     val isRunning by ProgressState.isRunning.collectAsState()
     val progress by ProgressState.progress.collectAsState()
     val message by ProgressState.message.collectAsState()
 
     fun checkStatus() {
-        try {
-            hasLQ = try { context.packageManager.getPackageInfo("com.garena.game.kgvn", 0) != null } catch (_: Exception) { false }
-            if (hasLQ) {
-                val info = context.packageManager.getPackageInfo("com.garena.game.kgvn", 0)
-                isLocked = Prefs.isOptimized(context, info.versionName)
-            }
-            
-            val isShizukuInstalled = try { context.packageManager.getPackageInfo("moe.shizuku.privileged.api", 0) != null } catch (_: Exception) { false }
-            hasShizuku = try {
-                if (isShizukuInstalled) Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED else false
-            } catch (_: Throwable) { false }
+        withContext(Dispatchers.IO) {
+            try {
+                // 1. CHECK FORCE UPDATE TỪ SERVER
+                val config = NetworkManager.fetchConfig()
+                val currentVersionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode.toInt()
+                } else {
+                    @Suppress("DEPRECATION")
+                    context.packageManager.getPackageInfo(context.packageName, 0).versionCode
+                }
+                
+                if (currentVersionCode < config.minAppVersion) {
+                    isForceUpdate = true
+                    return@withContext // Dừng mọi thứ nếu bắt buộc update
+                }
 
-            if (isShizukuInstalled && !hasShizuku) {
-                try { Shizuku.requestPermission(1001) } catch (_: Throwable) {}
-            }
-        } catch (_: Exception) {}
+                // 2. CHECK GAME & SHIZUKU
+                hasLQ = try { context.packageManager.getPackageInfo("com.garena.game.kgvn", 0) != null } catch (_: Exception) { false }
+                if (hasLQ) {
+                    val info = context.packageManager.getPackageInfo("com.garena.game.kgvn", 0)
+                    isLocked = Prefs.isOptimized(context, info.versionName)
+                }
+                
+                val isShizukuInstalled = try { context.packageManager.getPackageInfo("moe.shizuku.privileged.api", 0) != null } catch (_: Exception) { false }
+                hasShizuku = try {
+                    if (isShizukuInstalled) Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED else false
+                } catch (_: Throwable) { false }
+
+                if (isShizukuInstalled && !hasShizuku) {
+                    try { Shizuku.requestPermission(1001) } catch (_: Throwable) {}
+                }
+            } catch (_: Exception) {}
+        }
     }
 
-    LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) { checkStatus() }
-    }
+    LaunchedEffect(Unit) { checkStatus() }
     LaunchedEffect(isRunning) { if (!isRunning) checkStatus() }
 
     fun runOptimize() {
+        if (isForceUpdate) return
         try {
             if (!hasLQ) {
                 context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.garena.game.kgvn")))
@@ -125,6 +142,37 @@ fun App() {
         } catch (_: Exception) { ProgressState.reset() }
     }
 
+    // ================= MÀN HÌNH CHẶN NẾU LÀ BẢN CŨ =================
+    if (isForceUpdate) {
+        Column(
+            Modifier.fillMaxSize().background(BgDark).padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text("⚠️ BẢN CẬP NHẬT BẮT BUỘC", color = RedColor, fontWeight = FontWeight.Black, fontSize = 24.sp, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "Phiên bản App bạn đang dùng đã quá cũ và không còn được hỗ trợ.\n\nVui lòng tải bản mới nhất để tiếp tục sử dụng!",
+                color = TextWhite, fontSize = 16.sp, textAlign = TextAlign.Center, lineHeight = 24.sp
+            )
+            Spacer(Modifier.height(40.dp))
+            Box(
+                Modifier.fillMaxWidth().height(60.dp).clip(RoundedCornerShape(30.dp))
+                    .background(PurpleBtn)
+                    .clickable {
+                        // SẾP THAY LINK NÀY BẰNG LINK TẢI APP MỚI CỦA SẾP (Github Release, v.v.)
+                        val updateUrl = "https://github.com/nesusbuill/Martyr/releases" 
+                        try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(updateUrl))) } catch (_: Exception) {}
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("TẢI BẢN CẬP NHẬT", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            }
+        }
+        return
+    }
+
+    // ================= GIAO DIỆN CHÍNH =================
     Column(Modifier.fillMaxSize().background(BgDark).padding(16.dp)) {
         Row(Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
             Text("<", color = TextWhite, fontSize = 24.sp, fontWeight = FontWeight.Light)

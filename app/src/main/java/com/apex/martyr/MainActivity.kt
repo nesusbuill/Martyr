@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -59,6 +60,18 @@ class MainActivity : ComponentActivity() {
             }
         } catch (_: Exception) {}
 
+        // BẮT SỰ KIỆN KHI SẾP CẤP QUYỀN SHIZUKU
+        try {
+            Shizuku.addRequestPermissionResultListener { _, grantResult ->
+                if (grantResult == PackageManager.PERMISSION_GRANTED) {
+                    // Tự động thông báo cho UI cập nhật lại trạng thái
+                    runOnUiThread {
+                        Toast.makeText(this, "Đã cấp quyền Shizuku! Bấm Optimize lại nhé.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
         try {
             setContent {
                 MaterialTheme(colorScheme = darkColorScheme(background = BgDark)) {
@@ -79,16 +92,15 @@ fun App() {
     var hasLQ by remember { mutableStateOf(false) }
     var isLocked by remember { mutableStateOf(false) }
     var isForceUpdate by remember { mutableStateOf(false) }
+    var refreshTrigger by remember { mutableStateOf(0) } // Dùng để ép UI cập nhật
     
     val isRunning by ProgressState.isRunning.collectAsState()
     val progress by ProgressState.progress.collectAsState()
     val message by ProgressState.message.collectAsState()
 
-    // FIX LỖI BUILD: Thêm chữ 'suspend' vào hàm này
     suspend fun checkStatus() {
         withContext(Dispatchers.IO) {
             try {
-                // 1. CHECK FORCE UPDATE TỪ SERVER
                 val config = NetworkManager.fetchConfig()
                 val currentVersionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                     context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode.toInt()
@@ -102,7 +114,6 @@ fun App() {
                     return@withContext
                 }
 
-                // 2. CHECK GAME & SHIZUKU
                 hasLQ = try { context.packageManager.getPackageInfo("com.garena.game.kgvn", 0) != null } catch (_: Exception) { false }
                 if (hasLQ) {
                     val info = context.packageManager.getPackageInfo("com.garena.game.kgvn", 0)
@@ -114,39 +125,44 @@ fun App() {
                     if (isShizukuInstalled) Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED else false
                 } catch (_: Throwable) { false }
 
-                if (isShizukuInstalled && !hasShizuku) {
-                    try { Shizuku.requestPermission(1001) } catch (_: Throwable) {}
-                }
             } catch (_: Exception) {}
         }
     }
 
-    LaunchedEffect(Unit) { checkStatus() }
+    LaunchedEffect(Unit, refreshTrigger) { checkStatus() }
     LaunchedEffect(isRunning) { if (!isRunning) checkStatus() }
 
     fun runOptimize() {
         if (isForceUpdate) return
         try {
             if (!hasLQ) {
+                Toast.makeText(context, "Chưa cài Liên Quân Mobile!", Toast.LENGTH_SHORT).show()
                 context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.garena.game.kgvn")))
                 return
             }
             if (!hasShizuku) {
+                Toast.makeText(context, "Vui lòng cấp quyền Shizuku...", Toast.LENGTH_SHORT).show()
                 scope.launch(Dispatchers.IO) {
                     try { Shizuku.requestPermission(1001) } catch (_: Throwable) {}
                 }
                 return
             }
-            if (isLocked) return
+            if (isLocked) {
+                Toast.makeText(context, "Bản này đã được tối ưu rồi!", Toast.LENGTH_SHORT).show()
+                return
+            }
 
+            Toast.makeText(context, "Bắt đầu tối ưu...", Toast.LENGTH_SHORT).show()
             ProgressState.start()
             val i = Intent(context, MartyrService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(i)
             else context.startService(i)
-        } catch (_: Exception) { ProgressState.reset() }
+        } catch (e: Exception) { 
+            Toast.makeText(context, "Lỗi: ${e.message}", Toast.LENGTH_SHORT).show()
+            ProgressState.reset() 
+        }
     }
 
-    // ================= MÀN HÌNH CHẶN NẾU LÀ BẢN CŨ =================
     if (isForceUpdate) {
         Column(
             Modifier.fillMaxSize().background(BgDark).padding(24.dp),
@@ -175,7 +191,6 @@ fun App() {
         return
     }
 
-    // ================= GIAO DIỆN CHÍNH =================
     Column(Modifier.fillMaxSize().background(BgDark).padding(16.dp)) {
         Row(Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
             Text("<", color = TextWhite, fontSize = 24.sp, fontWeight = FontWeight.Light)
@@ -183,12 +198,12 @@ fun App() {
 
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CardBg).padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // GỌI ẢNH LOGO TRONG APP (File logo.png)
+                // FIX AVATAR BO GÓC BẰNG ROUNDEDCORNER SHAPE
                 Image(
                     painter = painterResource(id = R.drawable.logo),
                     contentDescription = "Game Logo",
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(60.dp).clip(RoundedCornerShape(12.dp))
+                    modifier = Modifier.size(60.dp).clip(RoundedCornerShape(16.dp))
                 )
                 Spacer(Modifier.width(12.dp))
                 Column {
@@ -250,7 +265,15 @@ fun App() {
                         }
                     )
                 )
-                .clickable(enabled = !isRunning && !isLocked) { runOptimize() },
+                .clickable(enabled = !isRunning && !isLocked) { 
+                    // Bấm nút này, nếu thiếu quyền Shizuku nó sẽ bật bảng xin quyền
+                    if (!hasShizuku) {
+                        scope.launch(Dispatchers.IO) {
+                            try { Shizuku.requestPermission(1001) } catch (_: Throwable) {}
+                        }
+                    }
+                    runOptimize() 
+                },
             contentAlignment = Alignment.Center
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {

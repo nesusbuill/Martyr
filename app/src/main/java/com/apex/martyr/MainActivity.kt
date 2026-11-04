@@ -9,6 +9,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -22,7 +23,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -81,7 +84,8 @@ fun App() {
     val progress by ProgressState.progress.collectAsState()
     val message by ProgressState.message.collectAsState()
 
-    fun checkStatus() {
+    // FIX LỖI BUILD: Thêm chữ 'suspend' vào hàm này
+    suspend fun checkStatus() {
         withContext(Dispatchers.IO) {
             try {
                 // 1. CHECK FORCE UPDATE TỪ SERVER
@@ -95,7 +99,7 @@ fun App() {
                 
                 if (currentVersionCode < config.minAppVersion) {
                     isForceUpdate = true
-                    return@withContext // Dừng mọi thứ nếu bắt buộc update
+                    return@withContext
                 }
 
                 // 2. CHECK GAME & SHIZUKU
@@ -160,7 +164,6 @@ fun App() {
                 Modifier.fillMaxWidth().height(60.dp).clip(RoundedCornerShape(30.dp))
                     .background(PurpleBtn)
                     .clickable {
-                        // SẾP THAY LINK NÀY BẰNG LINK TẢI APP MỚI CỦA SẾP (Github Release, v.v.)
                         val updateUrl = "https://github.com/nesusbuill/Martyr/releases" 
                         try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(updateUrl))) } catch (_: Exception) {}
                     },
@@ -180,9 +183,13 @@ fun App() {
 
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CardBg).padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(60.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFE65100)), contentAlignment = Alignment.Center) {
-                    Text("5v5", color = Color.White, fontWeight = FontWeight.Black, fontSize = 18.sp)
-                }
+                // GỌI ẢNH LOGO TRONG APP (File logo.png)
+                Image(
+                    painter = painterResource(id = R.drawable.logo),
+                    contentDescription = "Game Logo",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(60.dp).clip(RoundedCornerShape(12.dp))
+                )
                 Spacer(Modifier.width(12.dp))
                 Column {
                     Text("Liên Quân Mobile", color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 20.sp)

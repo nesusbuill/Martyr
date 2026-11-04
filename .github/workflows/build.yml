@@ -26,7 +26,6 @@ jobs:
       - name: Chấp nhận giấy phép Android SDK
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
 
-      # BƯỚC QUAN TRỌNG: GIẢI MÃ KEYSTORE TỪ SECRET RA FILE VẬT LÝ
       - name: Giải mã Keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/release.keystore
